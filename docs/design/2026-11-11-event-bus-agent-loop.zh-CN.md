@@ -5,8 +5,8 @@
 - **状态**：提议中。实现从 PR 1（总线原语）开始；不改变任何 surface 的默认行为。
 - **日期**：2026-11-11，基于 `origin/main` `19f73eb7ec0a`。
 - **关联**：
-  - [Unified agent loop](2026-10-23-unified-agent-loop.zh-CN.md) —— 本设计对其做内部架构升级的已批准设计；跟踪 issue #15327，#15343 批准，headless 已在 #15369 合入，ACP 模型轮在 #15509 评审中；
-  - 被移植架构的来源：`v1.0.0-preview` 分支 `587e3429cabf`，`packages/core/src/event-bus/`（19 个文件，6,237 行）；
+  - [Unified agent loop](2026-10-23-unified-agent-loop.zh-CN.md) —— 本设计对其做内部架构升级的已批准设计；跟踪 issue #15327，#15343 批准，headless 已在 #15369 合入，ACP 模型轮已在 #15509 合入；
+  - 被移植架构的来源：`v1.0.0-preview` 分支 `587e3429cabf`，`packages/core/src/event-bus/`（20 个文件，6,237 行）；
   - preview 移植试点 issue #16896（file-history 硬化）—— 另一条更小的独立线。
 
 ## 问题
@@ -37,7 +37,7 @@
 | 模型事件     | `core/turn.ts:78` `LlmEventType`（22 种），`Turn`（`:752`）                                                                                        | 已是规范化事件流                                                                                           |
 | 现有总线     | `confirmation-bus/message-bus.ts:15` `MessageBus`；`agents/runtime/agent-events.ts:296` `AgentEventEmitter`；`packages/acp-bridge/src/eventBus.ts` | hooks 请求/响应；subagent 作用域事件；带 replay 的传输层 fan-out —— 都不是循环控制总线                     |
 
-各 surface：headless 跑 `runAgentLoop`（已合入，#15369）；ACP 用 `runModelRound` 加自己的工具步（#15509 评审中）；Ink TUI（`use-llm-stream.ts`）、OpenTUI、AgentCore、speculation 与 Hosted Harness 仍跑各自的循环，由 unified-agent-loop 迁移计划管辖。
+各 surface：headless 跑 `runAgentLoop`（已合入，#15369）；ACP 用 `runModelRound` 加自己的工具步（已合入，#15509）；Ink TUI（`use-llm-stream.ts`）、OpenTUI、AgentCore、speculation 与 Hosted Harness 仍跑各自的循环，由 unified-agent-loop 迁移计划管辖。
 
 ### preview（在 `587e3429cabf` 核实）
 
@@ -157,13 +157,13 @@ preview 按 `queryId` 路由、用 UUID `roundId` 标记轮次。main 的循环�
 ## 测试
 
 - 单元：总线原语（移植 + 新增）、状态所有权与迟到轮次丢弃、每个 handler 的迁移、适配器的回调顺序/抛错语义。测试与源码同置（`*.test.ts`），vitest。
-- Parity：统一循环套件（headless 已合入；ACP 轮评审中）对 PR 2 原样运行 —— 它们是 surface 无感知的证明。
+- Parity：统一循环套件（headless 与 ACP 轮均已合入）对 PR 2 原样运行 —— 它们是 surface 无感知的证明。
 - E2E：按 feat-dev 流程在 `.qwen/e2e-tests/` 下写计划，覆盖设置开/关两种状态的 headless 与 ACP prompt 轮；实现前先做基线 dry-run。
 
 ## 风险与未决问题
 
 - **回调顺序是契约。** surface 依赖 `onModelEvent`/`onToolResult`/输出回调的精确顺序。适配器必须保持；parity 套件是检查，PR 2 另加显式顺序测试。
-- **`runModelRound`/`runToolBatch` 是公共接缝。** ACP 在飞 PR 直接使用它们；PR 2 把它们保留为 handler 的内部实现，而不是删除。
+- **`runModelRound`/`runToolBatch` 是公共接缝。** ACP（#15509，已合入）直接使用它们；PR 2 把它们保留为 handler 的内部实现，而不是删除。
 - **轮次身份。** 数字轮次比 preview 的 UUID 简单且与 main 日志一致；若未来 surface 需要全局唯一轮次 id，事件载荷可同时携带两者而不改路由。
 - **流式派发**仍是未决产品决策（时延收益 vs 审批/顺序语义）；Phase 3 的存在就是把这个决策显式化，而不是夹带进来。
 - **重复劳动风险。** 1.0 线最终可能整体替换 main；只要 main 的统一循环计划继续，本移植就是正当的。它复用 main 的类型与契约，正是为了让工作不绑定 preview。

@@ -5,8 +5,8 @@
 - **Status**: proposed. Implementation starts with PR 1 (bus primitives); no surface default changes.
 - **Date**: 2026-11-11, against `origin/main` `19f73eb7ec0a`.
 - **Related**:
-  - [Unified agent loop](2026-10-23-unified-agent-loop.md) — the accepted design this one re-architects internally; tracking issue #15327, accepted in #15343, headless merged in #15369, ACP model round in review in #15509;
-  - source of the ported architecture: the `v1.0.0-preview` branch at `587e3429cabf`, `packages/core/src/event-bus/` (19 files, 6,237 lines);
+  - [Unified agent loop](2026-10-23-unified-agent-loop.md) — the accepted design this one re-architects internally; tracking issue #15327, accepted in #15343, headless merged in #15369, ACP model round merged in #15509;
+  - source of the ported architecture: the `v1.0.0-preview` branch at `587e3429cabf`, `packages/core/src/event-bus/` (20 files, 6,237 lines);
   - the preview-port pilot issue #16896 (file-history hardening) — a separate, smaller track.
 
 ## Problem
@@ -37,7 +37,7 @@ We want these properties in main's shared loop without disturbing the convergenc
 | Model events   | `core/turn.ts:78` `LlmEventType` (22 kinds), `Turn` (`:752`)                                                                                       | already a normalized event stream                                                                                                 |
 | Existing buses | `confirmation-bus/message-bus.ts:15` `MessageBus`; `agents/runtime/agent-events.ts:296` `AgentEventEmitter`; `packages/acp-bridge/src/eventBus.ts` | hooks request/response; subagent-scoped events; transport fan-out with replay — none is a loop control bus                        |
 
-Surfaces: headless runs `runAgentLoop` (merged, #15369); ACP uses `runModelRound` with its own tool step (#15509 in review); Ink TUI (`use-llm-stream.ts`), OpenTUI, AgentCore, speculation and the Hosted Harness still run their own loops, governed by the unified-agent-loop migration plan.
+Surfaces: headless runs `runAgentLoop` (merged, #15369); ACP uses `runModelRound` with its own tool step (merged, #15509); Ink TUI (`use-llm-stream.ts`), OpenTUI, AgentCore, speculation and the Hosted Harness still run their own loops, governed by the unified-agent-loop migration plan.
 
 ### preview (verified at `587e3429cabf`)
 
@@ -157,13 +157,13 @@ Each slice keeps the parity suites green and changes no surface default.
 ## Testing
 
 - Unit: bus primitives (ported + new), state ownership and late-round drops, each handler's transitions, and the adapter's callback order/throw semantics. Collocated `*.test.ts`, vitest.
-- Parity: the unified-loop suites (headless merged; ACP round in review) run unchanged against PR 2 — they are the proof that surfaces notice nothing.
+- Parity: the unified-loop suites (headless and ACP round merged) run unchanged against PR 2 — they are the proof that surfaces notice nothing.
 - E2E: a plan under `.qwen/e2e-tests/` covering headless and ACP prompt turns with the setting on and off, per the feat-dev workflow; baseline dry-run before implementation.
 
 ## Risks and open questions
 
 - **Callback order is a contract.** Surfaces depend on the exact order of `onModelEvent`/`onToolResult`/output callbacks. The adapter must preserve it; the parity suites are the check, and PR 2 adds an explicit order test.
-- **`runModelRound`/`runToolBatch` are public seams.** ACP's in-flight PR uses them directly; PR 2 keeps them as the handlers' inner implementations rather than deleting them.
+- **`runModelRound`/`runToolBatch` are public seams.** ACP (#15509, merged) uses them directly; PR 2 keeps them as the handlers' inner implementations rather than deleting them.
 - **Round identity.** Numeric rounds are simpler than preview's UUIDs and match main's logs; if a future surface needs globally unique round ids, the event payload can carry both without a routing change.
 - **Streaming dispatch** remains an open product decision (latency win vs approval/ordering semantics); Phase 3 exists to force that decision explicitly rather than smuggling it in.
 - **Throwaway risk.** The 1.0 line may eventually replace main wholesale; this port is justified only as long as main's unified-loop program continues. It reuses main's types and contracts precisely so the work is not preview-specific.
